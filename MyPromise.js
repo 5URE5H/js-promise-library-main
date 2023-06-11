@@ -1,6 +1,6 @@
 const STATE = {
   Pending: "pending",
-  Fulfilled: "fullfilled",
+  Fulfilled: "fulfilled",
   Rejected: "rejected",
 };
 
@@ -24,7 +24,7 @@ class MyPromise {
       if (this.#state === STATE.Pending) return;
 
       const type =
-        this.#state === STATE.Fulfilled ? "onFullfilled" : "onRejected";
+        this.#state === STATE.Fulfilled ? "onFulfilled" : "onRejected";
 
       this.#cbs.forEach((cb) => {
         try {
@@ -60,9 +60,6 @@ class MyPromise {
 
   then(onFullfilled, onRejected) {
     return new MyPromise((res, rej) => {
-
-
-
       this.#cbs.push({
         onFullfilled: onFullfilled ?? ((val) => val),
         onRejected:
@@ -82,7 +79,18 @@ class MyPromise {
     return this.then(undefined, onRejected);
   }
 
-  finally() {}
+  finally(cb) {
+    return this.then(
+      (result) => {
+        cb();
+        return result;
+      },
+      (error) => {
+        cb();
+        return error;
+      }
+    );
+  }
 
   static resolve(value) {
     return new MyPromise((res) => {
@@ -95,17 +103,71 @@ class MyPromise {
       rej(error);
     });
   }
+
+  static all(promises) {
+    const results = [];
+    let count = 0;
+    return new MyPromise((resolve, reject) => {
+      for (let i = 0; i < promises.length; i++) {
+        promises[i]
+          .then((value) => {
+            count++;
+            results[i] = value;
+            if (promises.length === count) {
+              resolve(results);
+            }
+          })
+          .catch(reject);
+      }
+    });
+  }
+
+  static allSettled(promises) {
+    const results = [];
+    let count = 0;
+    return new MyPromise((resolve) => {
+      for (let i = 0; i < promises.length; i++) {
+        promises[i]
+          .then((value) => {
+            results[i] = { status: STATE.Fulfilled, value };
+          })
+          .catch((error) => {
+            results[i] = { status: STATE.Rejected, reason: error };
+          })
+          .finally(() => {
+            count++;
+            if (count === promises.length) {
+              resolve(results);
+            }
+          });
+      }
+    });
+  }
+
+  static race(promises) {
+    return new MyPromise((resolve, reject) => {
+      for (let promise of promises) {
+        promise.then(resolve).catch(reject);
+      }
+    });
+  }
+
+  static any(promises) {
+    const results = [];
+    let count = 0;
+    return new MyPromise((resolve, reject) => {
+      for (let i = 0; i < promises.length; i++) {
+        promises[i].then(resolve).catch((error) => {
+          count++;
+          results[i] = error;
+          if (promises.length === count) {
+            reject(results);
+          }
+        });
+      }
+    });
+  }
 }
 
-// const promise = new MyPromise((res) => res(1));
-
-// promise.then(v => {}).then(v => {})
-
-// promise.then(v => {})
-// // console.log(promise);
-// // setTimeout(() => {
-// //   console.log("test");
-// //   promise.then((v) => console.log(v));
-// // }, 1000);
 
 module.exports = MyPromise;
